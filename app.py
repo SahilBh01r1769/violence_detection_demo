@@ -23,7 +23,11 @@ import streamlit as st
 # ── Bootstrap demo data module path ──────────────────────────────────────────
 import sys, os
 sys.path.insert(0, os.path.dirname(__file__))
-from demo.data import DemoStream, AlertRecord, generate_alert_history, render_frame
+from demo.data import DemoStream, AlertRecord, generate_alert_history, render_frame, get_video_cache
+
+# Kick off background video download as early as possible so it's
+# ready by the time the user reaches the Live Monitor page.
+get_video_cache()
 
 # ── Page Config ──────────────────────────────────────────────────────────────
 
@@ -267,7 +271,11 @@ if "Live Monitor" in page:
         det = stream.next_frame()
         st.session_state.total_frames += 1
 
-        # Render synthetic frame
+        # Render frame — real video clip once downloaded, synthetic fallback until then
+        cache      = get_video_cache()
+        scene_key  = "violent" if det.is_violent else "normal"
+        video_ready = cache.is_ready(scene_key)
+
         frame = render_frame(det)
         b64   = frame_to_b64(frame)
 
@@ -275,6 +283,10 @@ if "Live Monitor" in page:
             f'<div class="feed-wrap"><img src="data:image/jpeg;base64,{b64}"></div>',
             unsafe_allow_html=True,
         )
+
+        # Show a one-time notice while the background download is in progress
+        if not video_ready:
+            st.caption("⏳ Loading video clip in background — synthetic preview shown until ready.")
 
         # Scenario progress bar
         prog = stream.scenario_progress
